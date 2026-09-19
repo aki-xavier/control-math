@@ -1,15 +1,10 @@
-// math.rs — this crate's own tests, with their own tolerances, plus the cross-checks
-// between the routes a value can travel.
-//
-// These assertions are the oracle: they are its numbers, so an expression that
-// is merely "close" or "equivalent" fails here.
+// math.rs — these assertions are the oracle: they are the numbers, so an expression that is merely
+// "close" or "equivalent" fails here.
 
 use control_math::mat::Mat;
 use control_math::quat::Quat;
 use control_math::rng::Mt19937;
 use control_math::vec3::Vec3;
-
-// ---- core arithmetic --------------------------------------------------------
 
 #[test]
 fn solve_and_inv() {
@@ -67,8 +62,6 @@ fn quat_rotvec_between_pi() {
     assert!(w.x.abs() < 1e-12);
     assert!(w.y.abs() < 1e-12);
 }
-
-// ---- the cross-checks between the two routes to one rotation ----------------
 
 #[test]
 fn from_axis_angle_agrees_with_the_quaternion_path() {

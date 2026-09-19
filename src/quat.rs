@@ -1,13 +1,7 @@
-// quat.rs — Quat, a wxyz quaternion (w = scalar part), with rotation-matrix
-// interconversion and the orientation-error helper.
-//
-// Construction and conversion are on the type (`Quat::IDENTITY`, `Quat::from_mat3`,
-// `Quat::rotvec_between`) and operations are methods.
-
 use crate::mat::Mat;
 use crate::vec3::Vec3;
 
-/// Quat is a wxyz quaternion (w = scalar part).
+/// wxyz, w = scalar part — the one ordering this crate's callers have to agree on.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Quat {
     pub w: f64,
@@ -17,7 +11,6 @@ pub struct Quat {
 }
 
 impl Quat {
-    /// IDENTITY is the unit quaternion.
     pub const IDENTITY: Quat = Quat {
         w: 1.0,
         x: 0.0,
@@ -25,8 +18,8 @@ impl Quat {
         z: 0.0,
     };
 
-    /// from_mat3 extracts a (w, x, y, z) quaternion from a rotation matrix
-    /// (Shepperd's method with the 180-degree fallback).
+    /// Shepperd's method, with the 180-degree fallback the trace branch needs: its divisor
+    /// 2*sqrt(1 + trace) vanishes at pi.
     pub fn from_mat3(r: &Mat) -> Quat {
         let tr = r.at(0, 0) + r.at(1, 1) + r.at(2, 2);
         let mut q;
@@ -74,17 +67,14 @@ impl Quat {
         q
     }
 
-    /// rotvec_between gives the world-frame rotation vector between two
-    /// quaternions, i.e. rotvec(R_target * R_current').
+    /// World frame: rotvec(R_target R_current').
     pub fn rotvec_between(target: Quat, current: Quat) -> Vec3 {
         let rt = target.to_mat3();
         let rc = current.to_mat3();
         rt.mul(&rc.transposed()).to_rotvec()
     }
 
-    /// mul is the Hamilton product q1 * q2 (composition: apply q2 then q1).
-    ///
-    /// A method rather than `impl Mul` for the reason Vec3::add records.
+    /// A method rather than `impl Mul`, for the reason Vec3::add records; q1 * q2 applies q2 first.
     #[allow(clippy::should_implement_trait)]
     pub fn mul(self, o: Quat) -> Quat {
         Quat {
@@ -95,14 +85,14 @@ impl Quat {
         }
     }
 
-    /// to_mat3 maps local-frame vectors to the world frame (R(q): local -> world).
+    /// R(q) is local -> world, the direction mul and rotvec_between are written against.
     pub fn to_mat3(self) -> Mat {
         let mut m = Mat::zeros(3, 3);
         self.to_mat3_into(&mut m);
         m
     }
 
-    /// to_mat3_into is to_mat3 into `out`: a fresh 3 x 3 per call was an allocation per call.
+    /// Into `out`, to keep a 3 x 3 allocation out of a per-call loop.
     pub fn to_mat3_into(self, out: &mut Mat) {
         if out.rows != 3 || out.cols != 3 {
             *out = Mat::zeros(3, 3);
@@ -121,9 +111,8 @@ impl Quat {
 }
 
 impl Default for Quat {
-    /// The unrotated quaternion, i.e. IDENTITY: a zeroed quaternion is not a rotation, so
-    /// the default is the neutral one. This also lets `#[derive(Default)]` reach the structs
-    /// that carry a Quat field.
+    /// IDENTITY, because a zeroed quaternion is not a rotation; this also lets `#[derive(Default)]`
+    /// reach the structs that carry a Quat field.
     fn default() -> Self {
         Self::IDENTITY
     }

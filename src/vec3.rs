@@ -1,10 +1,3 @@
-// vec3.rs — Vec3, a 3D Euclidean vector, and its operations.
-//
-// All state is carried by the struct; operations are methods, so the arithmetic reads as
-// object-oriented vector math. Constructors are associated functions and constants
-// (`Vec3::new`, `Vec3::ZERO`), the way the rest of the crate's types read.
-
-/// Vec3 is a 3D Euclidean vector.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Vec3 {
     pub x: f64,
@@ -13,7 +6,6 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    /// ZERO is the additive identity.
     pub const ZERO: Vec3 = Vec3 {
         x: 0.0,
         y: 0.0,
@@ -24,7 +16,6 @@ impl Vec3 {
         Vec3 { x, y, z }
     }
 
-    /// from_slice reads up to three leading components, the rest staying zero.
     pub fn from_slice(a: &[f64]) -> Vec3 {
         let mut v = Vec3::ZERO;
         if !a.is_empty() {
@@ -39,11 +30,9 @@ impl Vec3 {
         v
     }
 
-    // add is self + o.
-    //
-    // A method rather than `impl Add`: every arithmetic expression in this crate is written out
-    // expression by expression, and the suite's numbers are those expressions' results. Operators
-    // would rewrite ~1,000 call sites for a spelling change.
+    // add is self + o. A method rather than `impl Add`: the crate writes its arithmetic out
+    // expression by expression and the suite measures those expressions, so operators would only
+    // re-spell ~1,000 call sites.
     #[allow(clippy::should_implement_trait)]
     pub fn add(self, o: Vec3) -> Vec3 {
         Vec3 {
@@ -95,13 +84,11 @@ impl Vec3 {
         self.scale(1.0 / n)
     }
 
-    /// to_array returns the components as an array.
     pub fn to_array(self) -> [f64; 3] {
         [self.x, self.y, self.z]
     }
 
-    /// perp returns an arbitrary unit vector perpendicular to self (deterministic;
-    /// smallest-component pivot, sign fixed by the cross product).
+    /// perp is deterministic — a smallest-component pivot — so a run reproduces its basis.
     pub fn perp(self) -> Vec3 {
         let a = Vec3 {
             x: self.x.abs(),

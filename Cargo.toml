@@ -10,6 +10,5 @@ rand_mt = { version = "6.0.3", default-features = false }
 
 [lints.clippy]
 # The one default lint this crate does not follow: the matrix kernels index parallel arrays by a
-# MODEL count — `rows`, `cols` — not by a slice's length, so the index is the maths the loop is
-# written in.
+# MODEL count (`rows`, `cols`), not by a slice's length, so the index is the maths the loop is in.
 needless_range_loop = "allow"

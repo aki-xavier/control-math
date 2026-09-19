@@ -1,6 +1,5 @@
-// numerics.rs — the QP solvers and the damped least-squares solves: each assertion is an
-// arithmetic property the code holds to (the box projection, the left/right-inverse identity), not
-// a pinned number.
+// numerics.rs — each assertion is an arithmetic property that must hold (box projection,
+// left/right-inverse identity), not a pinned number.
 
 use control_math::mat::Mat;
 use control_math::qp::{box_qp, qp_ineq};

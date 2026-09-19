@@ -1,12 +1,12 @@
-// qp.rs — the constant-Hessian QP solvers: box_qp / qp_ineq are the cold-start primal active-set
-// reference, ConstHessianQp the warm-started working-set fast path (G = H^-1 built once, the
-// previous working set carried over, O(n^2) matvecs per iteration). The solvers are arithmetic
-// over `Mat` and nothing else.
+// qp.rs — one reference solver and one fast path per problem: `box_qp` / `qp_ineq` are the
+// cold-start primal active-set versions, `ConstHessianQp` the warm-started one. The warm start is
+// the whole point of the second: G = H^-1 is built once and the previous working set carried over,
+// so a step costs only O(n^2) matvecs.
 
 use crate::mat::Mat;
 
-// box_qp solves min 0.5 u'Hu + f'u s.t. lb <= u <= ub by a primal active-set (H symmetric positive
-// definite): solve the free subspace with pinned bounds, step to the first blocking bound.
+// box_qp: min 0.5 u'Hu + f'u s.t. lb <= u <= ub. H must be SPD — the free-subspace step solves the
+// pinned-out system, which has no solution otherwise.
 pub fn box_qp(h: &Mat, f_vec: &[f64], lb: &[f64], ub: &[f64]) -> Vec<f64> {
     let n = h.rows;
     let mut u = vec![0.0; n];
@@ -113,8 +113,8 @@ pub fn box_qp(h: &Mat, f_vec: &[f64], lb: &[f64], ub: &[f64]) -> Vec<f64> {
     u
 }
 
-// qp_ineq solves min 0.5 u'Hu + f'u s.t. lb <= u <= ub and A u <= b by a primal active-set: Phase I
-// reaches feasibility by projected gradient, then each iterate solves the exact KKT of the working set.
+// qp_ineq adds A u <= b. Feasibility has to be reached before the working-set step means anything,
+// so Phase I is its own projected-gradient loop.
 pub fn qp_ineq(
     h: &Mat,
     f_vec: &[f64],
@@ -126,7 +126,7 @@ pub fn qp_ineq(
     qp_ineq_warm(h, f_vec, lb, ub, a_mat, b_vec, &[])
 }
 
-// qp_ineq_warm is qp_ineq with an optional hot start u0 (typically the previous block's solution).
+// qp_ineq_warm takes a hot start u0 (typically the previous block's solution) instead of zero.
 pub fn qp_ineq_warm(
     h: &Mat,
     f_vec: &[f64],
@@ -146,7 +146,7 @@ pub fn qp_ineq_warm(
         }
         u[i] = lb[i].max(ub[i].min(init));
     }
-    // ---- Phase I: feasibility on the convex violation objective ----------
+    // ---- Phase I: feasibility before the working-set step is meaningful ---
     if m > 0 {
         for _ in 0..800 {
             let av = a_mat.mul_vec(&u);
@@ -343,24 +343,24 @@ pub fn qp_ineq_warm(
     u
 }
 
-// ---- constant-Hessian QP: the warm-started working-set fast path ------------
+// ---- ConstHessianQp: the warm-started path ---------------------------------
 
-/// ConstHessianQp solves the two fixed-structure QPs — box bounds on the variables, plus optional
-/// keep-out rows A u <= b — in the shape a warm-started solver wants: H is constant for the whole
-/// run, so G = H^{-1} is built once and every step is a warm-started active-set loop,
-/// u = -G f - G C' mu,  (C G C') mu = -(C G f + d),  C u = d,  over the active rows C.
+/// The warm-started path, for a QP whose H is constant across calls: G = H^{-1} is built once and
+/// the previous working set is carried over, so a step is only an active-set loop over the active
+/// rows C,
+/// u = -G f - G C' mu,  (C G C') mu = -(C G f + d),  C u = d.
 pub struct ConstHessianQp {
     pub n: usize,
     pub h: Mat,           // constant Hessian (kept for the gradient)
-    pub g_inv: Mat,       // H^{-1}, Cholesky-built once
-    pub u_prev: Vec<f64>, // warm start: previous solve (the solution moves little between calls)
-    pub pins_prev: Vec<usize>,
-    pub wrows_prev: Vec<usize>,
-    pub iters: usize,       // diagnostics: working-set iterations of the last solve
-    pub phase1_iter: usize, // diagnostics: Phase I iterations of the last solve
-    pub n_row_add: usize,   // diagnostics: what the working-set loop did in the last solve
+    pub g_inv: Mat,       // H^{-1} — the whole reason the type exists
+    pub u_prev: Vec<f64>, // warm start: previous solve (moves little between calls)
+    pub pins_prev: Vec<usize>,  // warm-start pins
+    pub wrows_prev: Vec<usize>, // warm-start rows
+    pub iters: usize,       // diagnostics (last solve): working-set iterations
+    pub phase1_iter: usize, // diagnostics (last solve): Phase I iterations
+    pub n_row_add: usize,   // diagnostics (last solve): row adds / releases
     pub n_row_rel: usize,
-    pub n_pin_add: usize,
+    pub n_pin_add: usize,   // diagnostics (last solve): pin adds / releases
     pub n_pin_rel: usize,
     pub n_eq_fail: usize,
 }
@@ -390,8 +390,8 @@ impl ConstHessianQp {
         col
     }
 
-    // eq_solve returns the exact minimizer of 1/2 u'Hu + f'u under the working set treated as
-    // equalities plus the multipliers (pins first, then rows); ok=false marks a singular set.
+    // eq_solve: the working set is treated as equalities, so the multipliers come back pins first
+    // and rows after; ok=false is a singular set the caller has to break by dropping a member.
     #[allow(clippy::too_many_arguments)]
     fn eq_solve(
         &self,
@@ -478,8 +478,8 @@ impl ConstHessianQp {
         (u, mu, true)
     }
 
-    // solve_box: min 1/2 u'Hu + f'u s.t. lb <= u <= ub, warm-started working set: solve the pinned
-    // subproblem exactly, step to the first blocking bound, drop the worst multiplier, repeat.
+    // solve_box: the previous solution seeds both u and the pins, which is what keeps the
+    // working-set loop short from one call to the next.
     pub fn solve_box(&mut self, f: &[f64], lb: &[f64], ub: &[f64]) -> Vec<f64> {
         let n = self.n;
         let mut u = vec![0.0; n];
@@ -604,8 +604,8 @@ impl ConstHessianQp {
         u
     }
 
-    // solve_ineq: min 1/2 u'Hu + f'u s.t. lb <= u <= ub and A u <= b, warm-started working set;
-    // Phase I is the projected gradient of the reference solver, so both start from the same iterate.
+    // solve_ineq: Phase I is the reference solver's projected gradient, so this and qp_ineq start
+    // from the same iterate.
     pub fn solve_ineq(
         &mut self,
         f: &[f64],
@@ -660,7 +660,7 @@ impl ConstHessianQp {
                     }
                     alpha *= 0.5;
                 }
-                // a stuck projected iterate cannot progress: a failed line search leaves u untouched
+                // a failed line search leaves u untouched, so a stuck iterate cannot progress
                 if !progressed {
                     break;
                 }
@@ -770,8 +770,8 @@ impl ConstHessianQp {
                 continue;
             }
             u = uf.clone();
-            // add one row per iteration: a batch makes the working set degenerate (near-parallel
-            // rows share non-unique multipliers) and cycles.
+            // one row per iteration: batching makes the working set degenerate (near-parallel rows
+            // share non-unique multipliers) and cycles.
             let av = a.mul_vec(&u);
             let mut worst_r: i32 = -1;
             let mut worst_v = 1e-9;
@@ -832,7 +832,7 @@ impl ConstHessianQp {
         u
     }
 
-    /// new builds G = H^{-1} from a Cholesky factorization (H SPD).
+    /// Builds G = H^{-1} by Cholesky, which is why H must be SPD: an indefinite H has no factor.
     pub fn new(h: Mat) -> ConstHessianQp {
         let n = h.rows;
         let mut l = Mat::zeros(n, n);

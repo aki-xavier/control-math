@@ -1,18 +1,9 @@
-// rng.rs — deterministic Mersenne Twister (MT19937, seed 0 default) with a
-// Box-Muller Gaussian pair.
-//
-// The stream is deterministic for a given seed, so a draw it makes is
-// reproducible byte for byte.
-//
-// The generator is `rand_mt`'s `Mt`, the reference MT19937 algorithm (init_genrand's seeding, the
-// reference twist including its last-element read of the already-updated state[0], and the
-// reference tempering), which is why the stream agrees with the reference. What sits on top of the
-// raw 32-bit draws here is the two MAPPINGS, `next_f64` and `randn`, because the numbers this crate
-// asserts are made of those.
+// rng.rs — `rand_mt`'s `Mt` is used unchanged, so the stream agrees with the reference MT19937 and
+// a draw reproduces byte for byte. The only additions are the two mappings (`next_f64`, `randn`)
+// the crate's numbers are made of.
 
 use rand_mt::Mt;
 
-/// Mt19937 is the generator state plus the Gaussian spare.
 pub struct Mt19937 {
     inner: Mt,
     has_spare: bool,
@@ -20,8 +11,7 @@ pub struct Mt19937 {
 }
 
 impl Mt19937 {
-    /// new seeds the generator (custom seed convention; the stream is
-    /// deterministic for a given seed).
+    /// The seed alone fixes the stream: the same seed replays byte for byte.
     pub fn new(seed: u32) -> Mt19937 {
         Mt19937 {
             inner: Mt::new(seed),
@@ -30,14 +20,14 @@ impl Mt19937 {
         }
     }
 
-    /// next_f64 returns a uniform double in [0, 1) with 53 random bits.
+    /// 53 bits, so the granularity matches an f64 mantissa exactly.
     pub fn next_f64(&mut self) -> f64 {
         let a = f64::from(self.inner.next_u32() >> 5);
         let b = f64::from(self.inner.next_u32() >> 6);
         (a * 67_108_864.0 + b) / 9_007_199_254_740_992.0
     }
 
-    /// randn returns a standard normal draw (Box-Muller, spare value caching).
+    /// Box-Muller with a cached spare: the pair's second value is kept rather than thrown away.
     pub fn randn(&mut self) -> f64 {
         if self.has_spare {
             self.has_spare = false;

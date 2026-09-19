@@ -1,17 +1,10 @@
-// mat.rs — Mat, a dense row-major matrix, with its constructors, decompositions,
-// its block helpers and the in-place forms of the multiplying kernels.
-//
-// Construction is on the type (`Mat::zeros`, `Mat::eye`, `Mat::from_rows`, ...) and
-// operations are methods, so the arithmetic reads as object-oriented matrix math.
-//
-// Two behaviours are deliberate and hold wherever they are met:
-// `at` answers 0.0 for an out-of-range index instead of panicking, and `set`
-// re-allocates the storage when its length does not match rows * cols (a Mat
-// built with a mismatched literal stays usable).
+// mat.rs — two deliberate behaviours hold wherever they are met: `at` answers 0.0 out of range
+// instead of panicking (an optional row reads as zeros), and `set` re-allocates when the storage
+// length does not match rows * cols (a Mat built with a mismatched literal stays usable).
 
 use crate::vec3::Vec3;
 
-/// Mat is a dense row-major matrix.
+/// Row-major — the layout every index in this file assumes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Mat {
     pub rows: usize,
@@ -20,7 +13,6 @@ pub struct Mat {
 }
 
 impl Mat {
-    /// zeros builds the rows x cols zero matrix.
     pub fn zeros(rows: usize, cols: usize) -> Mat {
         Mat {
             rows,
@@ -29,7 +21,6 @@ impl Mat {
         }
     }
 
-    /// eye is the n x n identity.
     pub fn eye(n: usize) -> Mat {
         let mut m = Mat::zeros(n, n);
         for i in 0..n {
@@ -38,7 +29,7 @@ impl Mat {
         m
     }
 
-    /// eye_scaled is s * I_n, the scaled identity a covariance is assembled from.
+    /// The scaled identity a covariance is assembled from.
     pub fn eye_scaled(s: f64, n: usize) -> Mat {
         let mut r = Mat::zeros(n, n);
         for i in 0..n {
@@ -47,7 +38,6 @@ impl Mat {
         r
     }
 
-    /// from_rows builds a matrix from nested row arrays.
     pub fn from_rows(rows: &[Vec<f64>]) -> Mat {
         if rows.is_empty() {
             return Mat::zeros(0, 0);
@@ -61,9 +51,7 @@ impl Mat {
         m
     }
 
-    /// from_blocks builds the block matrix [[a, b], [c, d]] (row-major layouts).
-    /// The allocating counterpart of set_block, for a system matrix written as
-    /// four quadrants.
+    /// The allocating counterpart of set_block, for a system matrix written as four quadrants.
     pub fn from_blocks(a: &Mat, b: &Mat, c: &Mat, d: &Mat) -> Mat {
         let mut r = Mat::zeros(a.rows + c.rows, a.cols + b.cols);
         for i in 0..a.rows {
@@ -89,8 +77,8 @@ impl Mat {
         r
     }
 
-    /// copy_from makes self a copy of src WITHOUT reallocating when the shape already matches: a
-    /// loop that copies one matrix per step would otherwise allocate one per step.
+    /// copy_from copies src into self, resizing only when the data length differs: a loop that
+    /// copies one matrix per step would otherwise allocate one per step.
     pub fn copy_from(&mut self, src: &Mat) {
         self.rows = src.rows;
         self.cols = src.cols;
@@ -100,7 +88,6 @@ impl Mat {
         self.data.copy_from_slice(&src.data);
     }
 
-    /// skew builds the 3x3 skew matrix of v.
     pub fn skew(v: Vec3) -> Mat {
         let mut m = Mat::zeros(3, 3);
         m.set(0, 1, -v.z);
@@ -112,15 +99,14 @@ impl Mat {
         m
     }
 
-    /// from_axis_angle is the Rodrigues rotation matrix R(axis, angle).
     pub fn from_axis_angle(axis: Vec3, angle: f64) -> Mat {
         let mut r = Mat::zeros(3, 3);
         Mat::from_axis_angle_into(axis, angle, &mut r);
         r
     }
 
-    /// from_axis_angle_into is `from_axis_angle` into `out`, with the 3 x 3 skew the Rodrigues form
-    /// carries written inline: both the result and that skew were allocations otherwise.
+    /// Into `out`, with skew(k) written inline: both the result and that skew were allocations
+    /// otherwise.
     pub fn from_axis_angle_into(axis: Vec3, angle: f64, out: &mut Mat) {
         let k = axis.normalized();
         let c = angle.cos();
@@ -148,8 +134,7 @@ impl Mat {
         }
     }
 
-    /// to_rotvec maps a rotation matrix to its axis-angle vector, in the world
-    /// frame.
+    /// Axis-angle, world frame.
     pub fn to_rotvec(&self) -> Vec3 {
         let c = ((self.at(0, 0) + self.at(1, 1) + self.at(2, 2) - 1.0) / 2.0).clamp(-1.0, 1.0);
         let th = c.acos();
@@ -174,8 +159,7 @@ impl Mat {
         ax.scale(th / n)
     }
 
-    /// symmetrized returns the nearest symmetric matrix: the guard against a
-    /// covariance that has drifted asymmetric.
+    /// The guard against a covariance that has drifted asymmetric: (M + M')/2.
     pub fn symmetrized(&self) -> Mat {
         let mut r = Mat::zeros(self.rows, self.cols);
         for i in 0..self.rows {
@@ -186,7 +170,7 @@ impl Mat {
         r
     }
 
-    /// at answers 0.0 outside the matrix rather than panicking: an optional row reads as zeros.
+    /// Out-of-range reads answer 0.0 rather than panicking, so an optional row reads as zeros.
     pub fn at(&self, i: usize, j: usize) -> f64 {
         if i >= self.rows || j >= self.cols {
             return 0.0;
@@ -207,14 +191,13 @@ impl Mat {
         self.data[i * self.cols + j] = v;
     }
 
-    /// transposed is the transpose.
     pub fn transposed(&self) -> Mat {
         let mut r = Mat::zeros(self.cols, self.rows);
         self.transposed_into(&mut r);
         r
     }
 
-    /// transposed_into is `transposed` into `out` (see `mul_into`).
+    /// Into `out`, for mul_into's reason.
     pub fn transposed_into(&self, out: &mut Mat) {
         if out.rows != self.cols || out.cols != self.rows {
             *out = Mat::zeros(self.cols, self.rows);
@@ -226,8 +209,8 @@ impl Mat {
         }
     }
 
-    // A method rather than `impl Add` for the reason Vec3::add records: the arithmetic expressions
-    // are written out, and the tests measure them.
+    // A method rather than `impl Add`, as Vec3::add records: the expressions are written out and
+    // the tests measure them.
     #[allow(clippy::should_implement_trait)]
     pub fn add(&self, o: &Mat) -> Mat {
         let mut r = Mat::zeros(self.rows, self.cols);
@@ -269,8 +252,8 @@ impl Mat {
         r
     }
 
-    /// mul_into is `mul` into `out`, resized on demand and reused after that: a tight loop that
-    /// multiplies one matrix per step would otherwise allocate a fresh `Mat` per step.
+    /// Into `out`, resized on demand and reused after that: otherwise a tight loop allocates a
+    /// fresh `Mat` per step.
     pub fn mul_into(&self, o: &Mat, out: &mut Mat) {
         if out.rows != self.rows || out.cols != o.cols {
             *out = Mat::zeros(self.rows, o.cols);
@@ -303,7 +286,6 @@ impl Mat {
         y
     }
 
-    /// mul_vec3 maps a Vec3 through a 3x3 matrix.
     pub fn mul_vec3(&self, v: Vec3) -> Vec3 {
         Vec3 {
             x: self.at(0, 0) * v.x + self.at(0, 1) * v.y + self.at(0, 2) * v.z,
@@ -312,10 +294,9 @@ impl Mat {
         }
     }
 
-    /// solve returns A \ b via Gaussian elimination with partial pivoting.
-    ///
-    /// A singular pivot is skipped and the result is best-effort: a solve that can meet a singular
-    /// matrix is the one that argues about conditioning at its own level.
+    /// Partial-pivoting Gaussian elimination. A singular pivot is skipped and the result is
+    /// best-effort: a solve that can meet a singular matrix argues about conditioning at its own
+    /// level.
     pub fn solve(&self, b: &[f64]) -> Vec<f64> {
         let n = self.rows;
         let mut a = vec![0.0; self.data.len()];
@@ -363,8 +344,7 @@ impl Mat {
         rhs
     }
 
-    /// solve_mat returns A \ B for a right-hand-side matrix B (one solve per
-    /// column). inv() is solve_mat against the identity.
+    /// One solve per column; inv() is this against the identity.
     pub fn solve_mat(&self, b: &Mat) -> Mat {
         let mut out = Mat::zeros(b.rows, b.cols);
         for j in 0..b.cols {
@@ -380,12 +360,11 @@ impl Mat {
         out
     }
 
-    /// inv returns the inverse of a square matrix.
     pub fn inv(&self) -> Mat {
         self.solve_mat(&Mat::eye(self.rows))
     }
 
-    /// to_rows returns the matrix as a nested row array (JSON-friendly).
+    /// Nested rows, for JSON-friendly output.
     pub fn to_rows(&self) -> Vec<Vec<f64>> {
         let mut rows = vec![vec![0.0; self.cols]; self.rows];
         for i in 0..self.rows {
@@ -396,7 +375,6 @@ impl Mat {
         rows
     }
 
-    /// diag returns the main diagonal.
     pub fn diag(&self) -> Vec<f64> {
         let mut d = vec![0.0; self.rows];
         for i in 0..self.rows {
