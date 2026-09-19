@@ -1,8 +1,8 @@
 # control-math — the math basis of the control stack
 
-A project of its own: `simu` (its consumer) depends on it as a sibling path
-dependency, so no arithmetic lives in `simu`'s tree and this crate can be built,
-tested and released alone. MIT-licensed (see `LICENSE`).
+A project of its own: `../z1-arm` and `../g1-biped` (its consumers) depend on it as
+sibling path dependencies, so no arithmetic lives in either tree and this crate can
+be built, tested and released alone. MIT-licensed (see `LICENSE`).
 
 Four modules, no model, no plant, no engine:
 

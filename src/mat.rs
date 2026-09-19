@@ -181,7 +181,7 @@ impl Mat {
     /// symmetrized returns the nearest symmetric matrix, the observers' one guard
     /// against a covariance drifting asymmetric.
     /// (it was `pub(crate)` while the module lived inside its consumer; a library owes its
-    /// consumers a public path, and simu's observers are the caller)
+    /// consumers a public path, and the estimator layer's filter is the caller)
     pub fn symmetrized(&self) -> Mat {
         let mut r = Mat::zeros(self.rows, self.cols);
         for i in 0..self.rows {

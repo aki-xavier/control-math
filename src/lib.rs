@@ -11,8 +11,9 @@
 //
 // It was extracted from the simu crate's `src/` (where the modules lived beside the code that
 // consumes them) once the dependency graph made the order obvious: nothing here reaches above
-// itself, which is why it can leave first and why everything else can follow it. simu consumes it as
-// a sibling path dependency (`{ path = "../control-math" }`).
+// itself, which is why it can leave first and why everything else can follow it. The two products
+// (`../z1-arm`, `../g1-biped`) consume it as a sibling path dependency
+// (`{ path = "../control-math" }`).
 //
 // `qp` and `task_space_bridge` came in a second pass, from the same tree and for the same reason:
 // each is pure arithmetic over `mat`, and each was the LAST edge from the legged stack into the arm
