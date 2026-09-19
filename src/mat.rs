@@ -1,11 +1,10 @@
-// mat.rs — Mat, a dense row-major matrix, with its constructors, decompositions
-// and the block helpers shared by the core (controller, observer) and the bench
-// MPC code.
+// mat.rs — Mat, a dense row-major matrix, with its constructors, decompositions,
+// its block helpers and the in-place forms of the multiplying kernels.
 //
 // Construction is on the type (`Mat::zeros`, `Mat::eye`, `Mat::from_rows`, ...) and
-// operations are methods, so the control layer reads as object-oriented matrix math.
+// operations are methods, so the arithmetic reads as object-oriented matrix math.
 //
-// Two behaviours are deliberate because callers depend on them:
+// Two behaviours are deliberate and hold wherever they are met:
 // `at` answers 0.0 for an out-of-range index instead of panicking, and `set`
 // re-allocates the storage when its length does not match rows * cols (a Mat
 // built with a mismatched literal stays usable).
@@ -39,8 +38,7 @@ impl Mat {
         m
     }
 
-    /// eye_scaled is s * I_n, the scaled identity the observers' covariances are
-    /// assembled from.
+    /// eye_scaled is s * I_n, the scaled identity a covariance is assembled from.
     pub fn eye_scaled(s: f64, n: usize) -> Mat {
         let mut r = Mat::zeros(n, n);
         for i in 0..n {
@@ -64,8 +62,8 @@ impl Mat {
     }
 
     /// from_blocks builds the block matrix [[a, b], [c, d]] (row-major layouts).
-    /// The allocating 2x2 counterpart of set_block, shared by the observers' EKF
-    /// system matrices.
+    /// The allocating counterpart of set_block, for a system matrix written as
+    /// four quadrants.
     pub fn from_blocks(a: &Mat, b: &Mat, c: &Mat, d: &Mat) -> Mat {
         let mut r = Mat::zeros(a.rows + c.rows, a.cols + b.cols);
         for i in 0..a.rows {
@@ -92,8 +90,7 @@ impl Mat {
     }
 
     /// copy_from makes self a copy of src WITHOUT reallocating when the shape already matches: a
-    /// caller that copies frames every tick (the plant's contact step) would otherwise allocate a
-    /// matrix per node per tick.
+    /// loop that copies one matrix per step would otherwise allocate one per step.
     pub fn copy_from(&mut self, src: &Mat) {
         self.rows = src.rows;
         self.cols = src.cols;
@@ -122,9 +119,8 @@ impl Mat {
         r
     }
 
-    /// from_axis_angle_into is `from_axis_angle` into the caller's matrix, with the 3 x 3 skew the
-    /// Rodrigues form carries written inline: this runs once per joint per FK pass, and both the
-    /// result and that skew were allocations (measured by `examples/alloc_count_probe.rs`).
+    /// from_axis_angle_into is `from_axis_angle` into `out`, with the 3 x 3 skew the Rodrigues form
+    /// carries written inline: both the result and that skew were allocations otherwise.
     pub fn from_axis_angle_into(axis: Vec3, angle: f64, out: &mut Mat) {
         let k = axis.normalized();
         let c = angle.cos();
@@ -178,10 +174,8 @@ impl Mat {
         ax.scale(th / n)
     }
 
-    /// symmetrized returns the nearest symmetric matrix, the observers' one guard
-    /// against a covariance drifting asymmetric.
-    /// (it was `pub(crate)` while the module lived inside its consumer; a library owes its
-    /// consumers a public path, and the estimator layer's filter is the caller)
+    /// symmetrized returns the nearest symmetric matrix: the guard against a
+    /// covariance that has drifted asymmetric.
     pub fn symmetrized(&self) -> Mat {
         let mut r = Mat::zeros(self.rows, self.cols);
         for i in 0..self.rows {
@@ -192,8 +186,7 @@ impl Mat {
         r
     }
 
-    /// at answers 0.0 outside the matrix rather than panicking: the control layer reads optional
-    /// rows through it.
+    /// at answers 0.0 outside the matrix rather than panicking: an optional row reads as zeros.
     pub fn at(&self, i: usize, j: usize) -> f64 {
         if i >= self.rows || j >= self.cols {
             return 0.0;
@@ -221,7 +214,7 @@ impl Mat {
         r
     }
 
-    /// transposed_into is `transposed` into the caller's matrix (see `mul_into`).
+    /// transposed_into is `transposed` into `out` (see `mul_into`).
     pub fn transposed_into(&self, out: &mut Mat) {
         if out.rows != self.cols || out.cols != self.rows {
             *out = Mat::zeros(self.cols, self.rows);
@@ -276,9 +269,8 @@ impl Mat {
         r
     }
 
-    /// mul_into is `mul` into the caller's matrix, resized on demand and reused after that: the
-    /// frame caches multiply one 3 x 3 per node per refresh, so a fresh `Mat` per multiply is one
-    /// allocation per node per tick (measured by `examples/alloc_count_probe.rs`).
+    /// mul_into is `mul` into `out`, resized on demand and reused after that: a tight loop that
+    /// multiplies one matrix per step would otherwise allocate a fresh `Mat` per step.
     pub fn mul_into(&self, o: &Mat, out: &mut Mat) {
         if out.rows != self.rows || out.cols != o.cols {
             *out = Mat::zeros(self.rows, o.cols);
@@ -322,9 +314,8 @@ impl Mat {
 
     /// solve returns A \ b via Gaussian elimination with partial pivoting.
     ///
-    /// A singular pivot is skipped and the result is best-effort: the callers that can meet a
-    /// singular matrix (the task-space inertia inverse) are the ones that argue about conditioning
-    /// at their own level.
+    /// A singular pivot is skipped and the result is best-effort: a solve that can meet a singular
+    /// matrix is the one that argues about conditioning at its own level.
     pub fn solve(&self, b: &[f64]) -> Vec<f64> {
         let n = self.rows;
         let mut a = vec![0.0; self.data.len()];
@@ -405,7 +396,7 @@ impl Mat {
         rows
     }
 
-    /// diag extracted for per-joint gain scaling.
+    /// diag returns the main diagonal.
     pub fn diag(&self) -> Vec<f64> {
         let mut d = vec![0.0; self.rows];
         for i in 0..self.rows {

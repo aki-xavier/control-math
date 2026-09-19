@@ -1,62 +1,34 @@
-// numerics.rs — the QP solvers and the task-space bridge, this crate's own slice of them: each
-// assertion is an arithmetic property their callers depend on (the box projection, the
-// left/right-inverse identity, the weighted ridge's fallbacks), not a pinned consumer reading.
+// numerics.rs — the QP solvers and the damped least-squares solves: each assertion is an
+// arithmetic property the code holds to (the box projection, the left/right-inverse identity), not
+// a pinned number.
 
 use control_math::mat::Mat;
 use control_math::qp::{box_qp, qp_ineq};
-use control_math::task_space_bridge::TaskSpaceBridge;
+use control_math::lstsq::DampedLstsq;
 
 fn close(got: &[f64], want: &[f64], tol: f64) -> bool {
     got.len() == want.len() && got.iter().zip(want).all(|(a, b)| (a - b).abs() <= tol)
 }
 
 #[test]
-fn the_bridge_on_an_identity_map_is_the_scaled_error() {
+fn solve_on_an_identity_map_is_the_scaled_error() {
     let j = Mat::eye(3);
     let e = [1.0, 2.0, 3.0];
     // no ridge: dq = e
-    assert!(close(&TaskSpaceBridge::new(3, 0.0).step(&j, &e), &e, 1e-12));
+    assert!(close(&DampedLstsq::new(3, 0.0).solve(&j, &e), &e, 1e-12));
     // ridge: (I + lam I)^-1 e = e / (1 + lam)
-    let damped = TaskSpaceBridge::new(3, 0.5).step(&j, &e);
+    let damped = DampedLstsq::new(3, 0.5).solve(&j, &e);
     assert!(close(&damped, &[1.0 / 1.5, 2.0 / 1.5, 3.0 / 1.5], 1e-12));
 }
 
 #[test]
 fn the_left_and_right_inverse_forms_agree() {
-    // J' (JJ' + lam I)^-1 = (J'J + lam I)^-1 J': the bridge's two spellings of one damped inverse,
+    // J' (JJ' + lam I)^-1 = (J'J + lam I)^-1 J': the two spellings of one damped inverse,
     // on a map where the two systems have different sizes.
     let j = Mat::from_rows(&[vec![1.0, 0.5, 0.0], vec![0.0, 0.25, 1.0]]);
     let e = [0.3, -0.2];
-    let b = TaskSpaceBridge::new(3, 1e-3);
-    assert!(close(&b.step(&j, &e), &b.solve_right(&j, &e), 1e-9));
-}
-
-#[test]
-fn a_weight_of_ones_is_the_plain_ridge() {
-    let j = Mat::from_rows(&[vec![1.0, 2.0], vec![3.0, 1.0]]);
-    let e = [1.0, -1.0];
-    let b = TaskSpaceBridge::new(2, 1e-6);
-    assert!(close(
-        &b.step(&j, &e),
-        &b.step_weighted(&j, &e, &[1.0, 1.0]),
-        1e-12
-    ));
-}
-
-#[test]
-fn a_non_finite_or_non_positive_weight_answers_one() {
-    let j = Mat::from_rows(&[vec![1.0, 2.0], vec![3.0, 1.0]]);
-    let e = [1.0, -1.0];
-    let b = TaskSpaceBridge::new(2, 1e-6);
-    let plain = b.step(&j, &e);
-    for w in [
-        [f64::NAN, 1.0],
-        [0.0, 1.0],
-        [-2.0, 1.0],
-        [f64::INFINITY, 1.0],
-    ] {
-        assert!(close(&plain, &b.step_weighted(&j, &e, &w), 1e-12));
-    }
+    let b = DampedLstsq::new(3, 1e-3);
+    assert!(close(&b.solve(&j, &e), &b.solve_right(&j, &e), 1e-9));
 }
 
 #[test]

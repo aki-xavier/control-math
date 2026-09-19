@@ -1,8 +1,7 @@
-// qp.rs — the constant-Hessian QP solvers, in their own home: box_qp / qp_ineq are the cold-start
-// primal active-set reference, ConstHessianQp the MPC fast path (G = H^-1 built once, warm-started
-// working set, O(n^2) matvecs per iteration). They moved here from simu (which re-exports them
-// through bench/bench_mpc.rs, so every existing caller keeps its path): the solvers are arithmetic
-// over `Mat` and nothing else, and this is the lowest layer that can hold them.
+// qp.rs — the constant-Hessian QP solvers: box_qp / qp_ineq are the cold-start primal active-set
+// reference, ConstHessianQp the warm-started working-set fast path (G = H^-1 built once, the
+// previous working set carried over, O(n^2) matvecs per iteration). The solvers are arithmetic
+// over `Mat` and nothing else.
 
 use crate::mat::Mat;
 
@@ -344,17 +343,17 @@ pub fn qp_ineq_warm(
     u
 }
 
-// ---- constant-Hessian QP: the MPC working-set fast path ---------------------
+// ---- constant-Hessian QP: the warm-started working-set fast path ------------
 
-/// ConstHessianQp solves the two fixed-structure MPC QPs of this suite — box bounds on the torque
-/// block, plus optional keep-out rows A u <= b — in the shape embedded solvers use: H is constant
-/// for the whole run, so G = H^{-1} is built once and every step is a warm-started active-set
-/// loop,  u = -G f - G C' mu,  (C G C') mu = -(C G f + d),  C u = d,  over the active rows C.
+/// ConstHessianQp solves the two fixed-structure QPs — box bounds on the variables, plus optional
+/// keep-out rows A u <= b — in the shape a warm-started solver wants: H is constant for the whole
+/// run, so G = H^{-1} is built once and every step is a warm-started active-set loop,
+/// u = -G f - G C' mu,  (C G C') mu = -(C G f + d),  C u = d,  over the active rows C.
 pub struct ConstHessianQp {
     pub n: usize,
     pub h: Mat,           // constant Hessian (kept for the gradient)
     pub g_inv: Mat,       // H^{-1}, Cholesky-built once
-    pub u_prev: Vec<f64>, // warm start: previous solve (MPC blocks are near-stationary)
+    pub u_prev: Vec<f64>, // warm start: previous solve (the solution moves little between calls)
     pub pins_prev: Vec<usize>,
     pub wrows_prev: Vec<usize>,
     pub iters: usize,       // diagnostics: working-set iterations of the last solve

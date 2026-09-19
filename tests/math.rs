@@ -1,5 +1,5 @@
-// math.rs — this crate's own tests, with their own tolerances, plus the cross-checks its
-// consumers depend on.
+// math.rs — this crate's own tests, with their own tolerances, plus the cross-checks
+// between the routes a value can travel.
 //
 // These assertions are the oracle: they are its numbers, so an expression that
 // is merely "close" or "equivalent" fails here.
@@ -68,13 +68,13 @@ fn quat_rotvec_between_pi() {
     assert!(w.y.abs() < 1e-12);
 }
 
-// ---- the cross-checks the dynamics layer relies on ---------------------------
+// ---- the cross-checks between the two routes to one rotation ----------------
 
 #[test]
 fn from_axis_angle_agrees_with_the_quaternion_path() {
-    // the dynamics derive joint frames from Mat::from_axis_angle while the plant's base
-    // pose travels as a quaternion: the two must be the same rotation, or every
-    // frame in between is wrong by the difference
+    // the two routes to a rotation must agree — Mat::from_axis_angle's and the
+    // quaternion one's — or every value that switches between them is wrong by
+    // the difference
     let axis = Vec3 {
         x: 1.0,
         y: -2.0,
@@ -130,8 +130,8 @@ fn to_rotvec_is_the_inverse_of_the_exponential_map() {
 fn eye_and_at_out_of_range_follow_the_v_behaviour() {
     let e = Mat::eye(3);
     assert_eq!(e.diag(), vec![1.0, 1.0, 1.0]);
-    // at() outside the matrix answers 0.0 rather than panicking: the control
-    // layer reads optional rows through it
+    // at() outside the matrix answers 0.0 rather than panicking: an optional row
+    // reads as zeros
     assert_eq!(e.at(9, 9), 0.0);
     assert_eq!(e.at(3, 0), 0.0);
 }
@@ -143,7 +143,7 @@ fn mt19937_stream_is_deterministic_and_standard_normal() {
     for _ in 0..1000 {
         assert_eq!(a.next_f64(), b.next_f64());
     }
-    // the noise-driven estimator benchmarks need a unit-variance source
+    // randn must be a unit-variance source
     let mut r = Mt19937::new(0);
     let n = 200_000;
     let mut sum = 0.0;

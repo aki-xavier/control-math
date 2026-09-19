@@ -1,28 +1,18 @@
-// control-math — the math basis of the control stack, as a project of its own.
+// control-math — a self-contained library of arithmetic, and nothing else.
 //
-// Six modules and nothing else: `vec3` and `quat` (the geometric primitives), `mat` (a dense
-// row-major matrix with the constructors, decompositions and block helpers the control core and the
-// benches share), `rng` (a deterministic MT19937 with the Box-Muller pair the noise-driven estimator
-// benches draw from), `qp` (the constant-Hessian QP solvers — box_qp/qp_ineq, the cold-start
-// active-set reference, and ConstHessianQp, the warm-started MPC fast path) and `task_space_bridge`
-// (the damped least-squares task-to-joint map, (J'J + lambda I) dq = J' e). It carries no model, no
-// plant and no engine: every consumer in the stack — kinematics, the observers, the task loops, the
-// legged stack, the benches — sits above it.
+// Six modules: `vec3` and `quat` (the geometric primitives), `mat` (a dense row-major matrix with
+// its constructors, decompositions and block helpers), `rng` (a deterministic MT19937 with the
+// Box-Muller Gaussian pair), `qp` (the constant-Hessian QP solvers — box_qp / qp_ineq, the
+// cold-start active-set reference, and ConstHessianQp, the warm-started working-set fast path) and
+// `lstsq` (damped least squares over a Jacobian: the left- and right-inverse ridge solves of
+// (J'J + lambda I) x = J' e).
 //
-// It was extracted from the simu crate's `src/` (where the modules lived beside the code that
-// consumes them) once the dependency graph made the order obvious: nothing here reaches above
-// itself, which is why it can leave first and why everything else can follow it. The two products
-// (`../z1-arm`, `../g1-biped`) consume it as a sibling path dependency
-// (`{ path = "../control-math" }`).
-//
-// `qp` and `task_space_bridge` came in a second pass, from the same tree and for the same reason:
-// each is pure arithmetic over `mat`, and each was the LAST edge from the legged stack into the arm
-// core (`synergy -> task_space_bridge`) and into the walk's own base layer (`whole_body_filter ->
-// qp`). With them here, those two product lines share no code above this crate.
+// It carries no model, no plant and no engine. The imports run one way and no further: `mat` on
+// `vec3`, `quat` on both, `qp` and `lstsq` on `mat`, and `rng` on `rand_mt` alone.
 
+pub mod lstsq;
 pub mod mat;
 pub mod qp;
 pub mod quat;
 pub mod rng;
-pub mod task_space_bridge;
 pub mod vec3;

@@ -1,14 +1,14 @@
 // rng.rs — deterministic Mersenne Twister (MT19937, seed 0 default) with a
-// Box-Muller Gaussian pair for the noise-driven estimator benchmarks.
+// Box-Muller Gaussian pair.
 //
-// The stream is deterministic for a given seed, which is what makes the
-// benchmarks reproducible.
+// The stream is deterministic for a given seed, so a draw it makes is
+// reproducible byte for byte.
 //
 // The generator is `rand_mt`'s `Mt`, the reference MT19937 algorithm (init_genrand's seeding, the
 // reference twist including its last-element read of the already-updated state[0], and the
-// reference tempering), which is why the streams agree: the seeded figures and every test that
-// draws from this are unchanged, byte for byte. What stays here is the two MAPPINGS on top of the
-// raw 32-bit draws, `next_f64` and `randn`, because the pinned numbers are made of those.
+// reference tempering), which is why the stream agrees with the reference. What sits on top of the
+// raw 32-bit draws here is the two MAPPINGS, `next_f64` and `randn`, because the numbers this crate
+// asserts are made of those.
 
 use rand_mt::Mt;
 
@@ -21,7 +21,7 @@ pub struct Mt19937 {
 
 impl Mt19937 {
     /// new seeds the generator (custom seed convention; the stream is
-    /// deterministic for a given seed, which is all the benchmarks need).
+    /// deterministic for a given seed).
     pub fn new(seed: u32) -> Mt19937 {
         Mt19937 {
             inner: Mt::new(seed),

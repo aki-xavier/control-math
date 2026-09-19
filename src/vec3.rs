@@ -1,7 +1,7 @@
 // vec3.rs — Vec3, a 3D Euclidean vector, and its operations.
 //
-// All state is carried by the struct; operations are methods, so the control layer reads as
-// object-oriented matrix math. Constructors are associated functions and constants
+// All state is carried by the struct; operations are methods, so the arithmetic reads as
+// object-oriented vector math. Constructors are associated functions and constants
 // (`Vec3::new`, `Vec3::ZERO`), the way the rest of the crate's types read.
 
 /// Vec3 is a 3D Euclidean vector.

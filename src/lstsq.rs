@@ -1,0 +1,36 @@
+// lstsq.rs — damped least squares over a Jacobian: the left- and right-inverse ridge solves of
+// (J'J + lambda I) x = J' e. It is arithmetic over `Mat` and nothing else.
+
+use crate::mat::Mat;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct DampedLstsq {
+    pub n: usize,
+    pub lam: f64,
+}
+
+impl DampedLstsq {
+    pub fn new(n: usize, lam: f64) -> DampedLstsq {
+        DampedLstsq { n, lam }
+    }
+
+    /// solve is the left-inverse (normal-equation) form (J'J + lam I)^-1 J' e over an m x n Jacobian.
+    pub fn solve(&self, j: &Mat, e: &[f64]) -> Vec<f64> {
+        let jt = j.transposed();
+        let mut a = jt.mul(j);
+        for i in 0..self.n {
+            a.set(i, i, a.at(i, i) + self.lam);
+        }
+        a.solve(&jt.mul_vec(e))
+    }
+
+    /// solve_right is the right-inverse form J' (J J' + lam I)^-1 e; cheaper than solve when m < n.
+    pub fn solve_right(&self, j: &Mat, e: &[f64]) -> Vec<f64> {
+        let jt = j.transposed();
+        let mut a = j.mul(&jt);
+        for i in 0..a.rows {
+            a.set(i, i, a.at(i, i) + self.lam);
+        }
+        jt.mul_vec(&a.solve(e))
+    }
+}

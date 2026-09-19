@@ -1,5 +1,5 @@
 // quat.rs — Quat, a wxyz quaternion (w = scalar part), with rotation-matrix
-// interconversion and the Route A orientation-error helper.
+// interconversion and the orientation-error helper.
 //
 // Construction and conversion are on the type (`Quat::IDENTITY`, `Quat::from_mat3`,
 // `Quat::rotvec_between`) and operations are methods.
@@ -75,8 +75,7 @@ impl Quat {
     }
 
     /// rotvec_between gives the world-frame rotation vector between two
-    /// quaternions, i.e. rotvec(R_target * R_current'), the Route A orientation
-    /// error block.
+    /// quaternions, i.e. rotvec(R_target * R_current').
     pub fn rotvec_between(target: Quat, current: Quat) -> Vec3 {
         let rt = target.to_mat3();
         let rc = current.to_mat3();
@@ -103,8 +102,7 @@ impl Quat {
         m
     }
 
-    /// to_mat3_into is to_mat3 into the caller's matrix: the FK pass builds one per call, and a
-    /// fresh 3 x 3 for it was an allocation per pass (measured by examples/alloc_count_probe.rs).
+    /// to_mat3_into is to_mat3 into `out`: a fresh 3 x 3 per call was an allocation per call.
     pub fn to_mat3_into(self, out: &mut Mat) {
         if out.rows != 3 || out.cols != 3 {
             *out = Mat::zeros(3, 3);
