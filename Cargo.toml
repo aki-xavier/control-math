@@ -8,6 +8,12 @@ license = "MIT"
 [dependencies]
 rand_mt = { version = "6.0.3", default-features = false }
 
+# A DEV-dependency only: the comment rules, which this project's own test holds it to
+# (tests/comment_why.rs). It reads text, has no dependencies of its own, and nothing in `src/` names it,
+# so the arithmetic below is still the whole of what this crate links.
+[dev-dependencies]
+comment-why = { path = "../comment-why" }
+
 [lints.clippy]
 # The one default lint this crate does not follow: the matrix kernels index parallel arrays by the
 # declared `rows`/`cols`, not by a slice's length, so the index is the maths the loop is in.

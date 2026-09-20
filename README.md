@@ -37,6 +37,15 @@ out-of-range behaviour of `eye`/`at`, the MT19937 stream's determinism and
 standard normal, the box projection, and the left/right-inverse identity.
 
 ```sh
-mbx test                                                    # 12 tests
+make test                                                   # 12 tests, then the comment rules
 mbx clippy --all-targets -- -D warnings
 ```
+
+`make test` is `mbx test` and then the comment rules over the tree, so the lint is not a step anyone has
+to remember. The rules are `../comment-why`, a sibling project that reads text and asks the compiler for
+nothing — which is what lets the same rules also be an ordinary test here, `tests/comment_why.rs`, with
+no nightly and no plugin. They decide three shapes: process narration and filler, a comment line whose
+content words are all in the code below it, and a short doc comment that re-says the item's own name.
+The rest is a reader's call, and `make comments` prints that crate's local approximation — long,
+marker-free and mostly the code's own words — as advice it never fails on. The rules are a
+DEV-dependency: nothing that depends on this crate links them.
