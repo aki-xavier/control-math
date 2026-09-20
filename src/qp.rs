@@ -350,16 +350,16 @@ pub fn qp_ineq_warm(
 /// u = -G f - G C' mu,  (C G C') mu = -(C G f + d),  C u = d.
 pub struct ConstHessianQp {
     pub n: usize,
-    pub h: Mat,           // constant Hessian (kept for the gradient)
-    pub g_inv: Mat,       // H^{-1} — the whole reason the type exists
-    pub u_prev: Vec<f64>, // warm start: previous solve (moves little between calls)
+    pub h: Mat,                 // constant Hessian (kept for the gradient)
+    pub g_inv: Mat,             // H^{-1} — the whole reason the type exists
+    pub u_prev: Vec<f64>,       // warm start: previous solve (moves little between calls)
     pub pins_prev: Vec<usize>,  // warm-start pins
     pub wrows_prev: Vec<usize>, // warm-start rows
-    pub iters: usize,       // diagnostics (last solve): working-set iterations
-    pub phase1_iter: usize, // diagnostics (last solve): Phase I iterations
-    pub n_row_add: usize,   // diagnostics (last solve): row adds / releases
+    pub iters: usize,           // diagnostics (last solve): working-set iterations
+    pub phase1_iter: usize,     // diagnostics (last solve): Phase I iterations
+    pub n_row_add: usize,       // diagnostics (last solve): row adds / releases
     pub n_row_rel: usize,
-    pub n_pin_add: usize,   // diagnostics (last solve): pin adds / releases
+    pub n_pin_add: usize, // diagnostics (last solve): pin adds / releases
     pub n_pin_rel: usize,
     pub n_eq_fail: usize,
 }

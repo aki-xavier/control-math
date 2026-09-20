@@ -37,6 +37,6 @@ out-of-range behaviour of `eye`/`at`, the MT19937 stream's determinism and
 standard normal, the box projection, and the left/right-inverse identity.
 
 ```sh
-cargo test                                                  # 12 tests
-cargo clippy --all-targets -- -D warnings
+mbx test                                                    # 12 tests
+mbx clippy --all-targets -- -D warnings
 ```

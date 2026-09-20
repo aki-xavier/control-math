@@ -1,9 +1,9 @@
 // Each assertion is an arithmetic property that must hold (box projection, left/right-inverse
 // identity), not a pinned number.
 
+use control_math::lstsq::DampedLstsq;
 use control_math::mat::Mat;
 use control_math::qp::{box_qp, qp_ineq};
-use control_math::lstsq::DampedLstsq;
 
 fn close(got: &[f64], want: &[f64], tol: f64) -> bool {
     got.len() == want.len() && got.iter().zip(want).all(|(a, b)| (a - b).abs() <= tol)
