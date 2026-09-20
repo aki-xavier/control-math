@@ -1,7 +1,7 @@
 use crate::mat::Mat;
 use crate::vec3::Vec3;
 
-/// wxyz, w = scalar part — the one ordering this crate's callers have to agree on.
+/// wxyz — w is the scalar part, the ordering this API fixes.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Quat {
     pub w: f64,
@@ -67,14 +67,14 @@ impl Quat {
         q
     }
 
-    /// World frame: rotvec(R_target R_current').
+    /// World frame.
     pub fn rotvec_between(target: Quat, current: Quat) -> Vec3 {
         let rt = target.to_mat3();
         let rc = current.to_mat3();
         rt.mul(&rc.transposed()).to_rotvec()
     }
 
-    /// A method rather than `impl Mul`, for the reason Vec3::add records; q1 * q2 applies q2 first.
+    /// A method rather than `impl Mul`, for the reason Vec3::add records.
     #[allow(clippy::should_implement_trait)]
     pub fn mul(self, o: Quat) -> Quat {
         Quat {
@@ -85,14 +85,14 @@ impl Quat {
         }
     }
 
-    /// R(q) is local -> world, the direction mul and rotvec_between are written against.
+    /// Local -> world, the direction mul and rotvec_between are written against.
     pub fn to_mat3(self) -> Mat {
         let mut m = Mat::zeros(3, 3);
         self.to_mat3_into(&mut m);
         m
     }
 
-    /// Into `out`, to keep a 3 x 3 allocation out of a per-call loop.
+    /// To keep a 3 x 3 allocation out of a per-call loop.
     pub fn to_mat3_into(self, out: &mut Mat) {
         if out.rows != 3 || out.cols != 3 {
             *out = Mat::zeros(3, 3);
@@ -112,7 +112,7 @@ impl Quat {
 
 impl Default for Quat {
     /// IDENTITY, because a zeroed quaternion is not a rotation; this also lets `#[derive(Default)]`
-    /// reach the structs that carry a Quat field.
+    /// reach a struct that carries a Quat.
     fn default() -> Self {
         Self::IDENTITY
     }

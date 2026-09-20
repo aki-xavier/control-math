@@ -1,6 +1,5 @@
-// rng.rs — `rand_mt`'s `Mt` is used unchanged, so the stream agrees with the reference MT19937 and
-// a draw reproduces byte for byte. The only additions are the two mappings (`next_f64`, `randn`)
-// the crate's numbers are made of.
+// `rand_mt`'s `Mt` is used unchanged, so the stream agrees with the reference MT19937 and a draw
+// reproduces byte for byte; `next_f64` and `randn` are the only additions.
 
 use rand_mt::Mt;
 
@@ -27,7 +26,7 @@ impl Mt19937 {
         (a * 67_108_864.0 + b) / 9_007_199_254_740_992.0
     }
 
-    /// Box-Muller with a cached spare: the pair's second value is kept rather than thrown away.
+    /// The Box-Muller pair's second value is kept rather than thrown away.
     pub fn randn(&mut self) -> f64 {
         if self.has_spare {
             self.has_spare = false;

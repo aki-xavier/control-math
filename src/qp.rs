@@ -1,7 +1,6 @@
-// qp.rs — one reference solver and one fast path per problem: `box_qp` / `qp_ineq` are the
-// cold-start primal active-set versions, `ConstHessianQp` the warm-started one. The warm start is
-// the whole point of the second: G = H^-1 is built once and the previous working set carried over,
-// so a step costs only O(n^2) matvecs.
+// `box_qp` / `qp_ineq` are the cold-start primal active-set solvers, `ConstHessianQp` the warm-
+// started fast path: G = H^-1 is built once and the previous working set carried over, so a step
+// costs only O(n^2) matvecs.
 
 use crate::mat::Mat;
 
@@ -126,7 +125,8 @@ pub fn qp_ineq(
     qp_ineq_warm(h, f_vec, lb, ub, a_mat, b_vec, &[])
 }
 
-// qp_ineq_warm takes a hot start u0 (typically the previous block's solution) instead of zero.
+// qp_ineq_warm takes a hot start u0 instead of zero: a re-solve near it converges in fewer
+// iterations.
 pub fn qp_ineq_warm(
     h: &Mat,
     f_vec: &[f64],
@@ -345,9 +345,8 @@ pub fn qp_ineq_warm(
 
 // ---- ConstHessianQp: the warm-started path ---------------------------------
 
-/// The warm-started path, for a QP whose H is constant across calls: G = H^{-1} is built once and
-/// the previous working set is carried over, so a step is only an active-set loop over the active
-/// rows C,
+/// For a QP whose H is constant across calls: G = H^{-1} is built once and the previous working
+/// set is carried over, so a step is only an active-set loop over the active rows C,
 /// u = -G f - G C' mu,  (C G C') mu = -(C G f + d),  C u = d.
 pub struct ConstHessianQp {
     pub n: usize,
@@ -366,7 +365,7 @@ pub struct ConstHessianQp {
 }
 
 impl ConstHessianQp {
-    // g_matvec: v = G x on the raw row-major storage (hot path, no Mat bounds).
+    // v = G x on the raw row-major storage (hot path, no Mat bounds).
     fn g_matvec(&self, x: &[f64]) -> Vec<f64> {
         let n = self.n;
         let mut v = vec![0.0; n];
@@ -391,7 +390,7 @@ impl ConstHessianQp {
     }
 
     // eq_solve: the working set is treated as equalities, so the multipliers come back pins first
-    // and rows after; ok=false is a singular set the caller has to break by dropping a member.
+    // and rows after; ok=false is a singular set, broken by dropping a member.
     #[allow(clippy::too_many_arguments)]
     fn eq_solve(
         &self,
@@ -478,8 +477,8 @@ impl ConstHessianQp {
         (u, mu, true)
     }
 
-    // solve_box: the previous solution seeds both u and the pins, which is what keeps the
-    // working-set loop short from one call to the next.
+    // The previous solution seeds both u and the pins, which keeps the working-set loop short
+    // from one call to the next.
     pub fn solve_box(&mut self, f: &[f64], lb: &[f64], ub: &[f64]) -> Vec<f64> {
         let n = self.n;
         let mut u = vec![0.0; n];
@@ -604,8 +603,8 @@ impl ConstHessianQp {
         u
     }
 
-    // solve_ineq: Phase I is the reference solver's projected gradient, so this and qp_ineq start
-    // from the same iterate.
+    // Phase I is the reference solver's projected gradient, so this and qp_ineq start from the
+    // same iterate.
     pub fn solve_ineq(
         &mut self,
         f: &[f64],

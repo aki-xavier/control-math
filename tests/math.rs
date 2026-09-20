@@ -1,5 +1,5 @@
-// math.rs — these assertions are the oracle: they are the numbers, so an expression that is merely
-// "close" or "equivalent" fails here.
+// These assertions are the oracle: they are the numbers, so an expression that is merely "close"
+// or "equivalent" fails here.
 
 use control_math::mat::Mat;
 use control_math::quat::Quat;

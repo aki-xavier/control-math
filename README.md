@@ -2,8 +2,7 @@
 
 A small, self-contained library of arithmetic, and nothing else: vectors,
 quaternions, a dense matrix, a deterministic random stream, and two solver
-families. Pure arithmetic — no model, no plant, no engine. MIT-licensed (see
-`LICENSE`).
+families. MIT-licensed (see `LICENSE`).
 
 Six modules:
 

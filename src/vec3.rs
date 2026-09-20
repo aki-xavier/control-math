@@ -30,9 +30,7 @@ impl Vec3 {
         v
     }
 
-    // add is self + o. A method rather than `impl Add`: the crate writes its arithmetic out
-    // expression by expression and the suite measures those expressions, so operators would only
-    // re-spell ~1,000 call sites.
+    // A method rather than `impl Add`: the arithmetic is written out expression by expression.
     #[allow(clippy::should_implement_trait)]
     pub fn add(self, o: Vec3) -> Vec3 {
         Vec3 {
@@ -42,7 +40,7 @@ impl Vec3 {
         }
     }
 
-    // sub is self - o; a method for the reason add records.
+    // A method, for the reason add records.
     #[allow(clippy::should_implement_trait)]
     pub fn sub(self, o: Vec3) -> Vec3 {
         Vec3 {
@@ -88,7 +86,7 @@ impl Vec3 {
         [self.x, self.y, self.z]
     }
 
-    /// perp is deterministic — a smallest-component pivot — so a run reproduces its basis.
+    /// Deterministic, so a run reproduces its basis.
     pub fn perp(self) -> Vec3 {
         let a = Vec3 {
             x: self.x.abs(),

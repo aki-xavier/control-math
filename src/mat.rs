@@ -1,6 +1,6 @@
-// mat.rs — two deliberate behaviours hold wherever they are met: `at` answers 0.0 out of range
-// instead of panicking (an optional row reads as zeros), and `set` re-allocates when the storage
-// length does not match rows * cols (a Mat built with a mismatched literal stays usable).
+// Two deliberate behaviours hold wherever they are met: `at` answers 0.0 out of range instead of
+// panicking (an optional row reads as zeros), and `set` re-allocates when the storage length does
+// not match rows * cols (a mismatched literal stays usable).
 
 use crate::vec3::Vec3;
 
@@ -77,8 +77,8 @@ impl Mat {
         r
     }
 
-    /// copy_from copies src into self, resizing only when the data length differs: a loop that
-    /// copies one matrix per step would otherwise allocate one per step.
+    /// Resizes only when the data length differs: a loop that copies one matrix per step would
+    /// otherwise allocate one per step.
     pub fn copy_from(&mut self, src: &Mat) {
         self.rows = src.rows;
         self.cols = src.cols;
@@ -105,8 +105,7 @@ impl Mat {
         r
     }
 
-    /// Into `out`, with skew(k) written inline: both the result and that skew were allocations
-    /// otherwise.
+    /// With skew(k) written inline: both the result and that skew were allocations otherwise.
     pub fn from_axis_angle_into(axis: Vec3, angle: f64, out: &mut Mat) {
         let k = axis.normalized();
         let c = angle.cos();
@@ -197,7 +196,7 @@ impl Mat {
         r
     }
 
-    /// Into `out`, for mul_into's reason.
+    /// For mul_into's reason.
     pub fn transposed_into(&self, out: &mut Mat) {
         if out.rows != self.cols || out.cols != self.rows {
             *out = Mat::zeros(self.cols, self.rows);
@@ -209,8 +208,7 @@ impl Mat {
         }
     }
 
-    // A method rather than `impl Add`, as Vec3::add records: the expressions are written out and
-    // the tests measure them.
+    // A method rather than `impl Add`, as Vec3::add records.
     #[allow(clippy::should_implement_trait)]
     pub fn add(&self, o: &Mat) -> Mat {
         let mut r = Mat::zeros(self.rows, self.cols);
@@ -252,8 +250,8 @@ impl Mat {
         r
     }
 
-    /// Into `out`, resized on demand and reused after that: otherwise a tight loop allocates a
-    /// fresh `Mat` per step.
+    /// Resized on demand and reused after that: otherwise a tight loop allocates a fresh `Mat`
+    /// per step.
     pub fn mul_into(&self, o: &Mat, out: &mut Mat) {
         if out.rows != self.rows || out.cols != o.cols {
             *out = Mat::zeros(self.rows, o.cols);
@@ -344,7 +342,7 @@ impl Mat {
         rhs
     }
 
-    /// One solve per column; inv() is this against the identity.
+    /// inv() is this against the identity.
     pub fn solve_mat(&self, b: &Mat) -> Mat {
         let mut out = Mat::zeros(b.rows, b.cols);
         for j in 0..b.cols {
@@ -364,7 +362,7 @@ impl Mat {
         self.solve_mat(&Mat::eye(self.rows))
     }
 
-    /// Nested rows, for JSON-friendly output.
+    /// For JSON-friendly output.
     pub fn to_rows(&self) -> Vec<Vec<f64>> {
         let mut rows = vec![vec![0.0; self.cols]; self.rows];
         for i in 0..self.rows {
