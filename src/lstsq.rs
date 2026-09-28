@@ -1,5 +1,3 @@
-// The ridge solves of (J'J + lambda I) x = J' e, over `Mat` alone.
-
 use crate::mat::Mat;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -13,7 +11,6 @@ impl DampedLstsq {
         DampedLstsq { n, lam }
     }
 
-    /// n x n, whatever m is.
     pub fn solve(&self, j: &Mat, e: &[f64]) -> Vec<f64> {
         let jt = j.transposed();
         let mut a = jt.mul(j);
@@ -23,7 +20,6 @@ impl DampedLstsq {
         a.solve(&jt.mul_vec(e))
     }
 
-    /// m x m, so it is cheaper than solve when m < n.
     pub fn solve_right(&self, j: &Mat, e: &[f64]) -> Vec<f64> {
         let jt = j.transposed();
         let mut a = j.mul(&jt);

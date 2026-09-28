@@ -1,6 +1,3 @@
-// These assertions are the oracle: they are the numbers, so an expression that is merely "close"
-// or "equivalent" fails here.
-
 use control_math::mat::Mat;
 use control_math::quat::Quat;
 use control_math::rng::Mt19937;
@@ -43,14 +40,12 @@ fn quat_to_mat3_roundtrip() {
     };
     let r = q.to_mat3();
     let q2 = Quat::from_mat3(&r);
-    // sign-normalized w>0 equivalence (identical rotation up to sign)
     assert!((q.w - q2.w).abs() < 1e-10);
     assert!((q.z - q2.z).abs() < 1e-10);
 }
 
 #[test]
 fn quat_rotvec_between_pi() {
-    // rotation of pi about z maps to rotation vector pi*z.
     let q = Quat {
         w: 0.0,
         x: 0.0,
@@ -65,9 +60,6 @@ fn quat_rotvec_between_pi() {
 
 #[test]
 fn from_axis_angle_agrees_with_the_quaternion_path() {
-    // the two routes to a rotation must agree — Mat::from_axis_angle's and the
-    // quaternion one's — or every value that switches between them is wrong by
-    // the difference
     let axis = Vec3 {
         x: 1.0,
         y: -2.0,
@@ -112,7 +104,6 @@ fn to_rotvec_is_the_inverse_of_the_exponential_map() {
             w.norm()
         );
         if angle > 1e-3 {
-            // direction is the axis (for angles below pi, where the map is injective)
             let u = w.normalized();
             assert!((u.dot(axis) - 1.0).abs() < 1e-6);
         }
@@ -123,8 +114,6 @@ fn to_rotvec_is_the_inverse_of_the_exponential_map() {
 fn eye_and_at_out_of_range_follow_the_v_behaviour() {
     let e = Mat::eye(3);
     assert_eq!(e.diag(), vec![1.0, 1.0, 1.0]);
-    // at() outside the matrix answers 0.0 rather than panicking: an optional row
-    // reads as zeros
     assert_eq!(e.at(9, 9), 0.0);
     assert_eq!(e.at(3, 0), 0.0);
 }
@@ -136,7 +125,6 @@ fn mt19937_stream_is_deterministic_and_standard_normal() {
     for _ in 0..1000 {
         assert_eq!(a.next_f64(), b.next_f64());
     }
-    // randn must be a unit-variance source
     let mut r = Mt19937::new(0);
     let n = 200_000;
     let mut sum = 0.0;
@@ -150,7 +138,6 @@ fn mt19937_stream_is_deterministic_and_standard_normal() {
     let var = sum2 / f64::from(n) - mean * mean;
     assert!(mean.abs() < 0.02, "randn mean {mean}");
     assert!((var - 1.0).abs() < 0.02, "randn variance {var}");
-    // uniform draws stay in [0, 1)
     let mut u = Mt19937::new(7);
     for _ in 0..1000 {
         let x = u.next_f64();

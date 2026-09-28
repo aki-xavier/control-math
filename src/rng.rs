@@ -1,6 +1,3 @@
-// `rand_mt`'s `Mt` is used unchanged, so the stream agrees with the reference MT19937 and a draw
-// reproduces byte for byte; `next_f64` and `randn` are the only additions.
-
 use rand_mt::Mt;
 
 pub struct Mt19937 {
@@ -10,7 +7,6 @@ pub struct Mt19937 {
 }
 
 impl Mt19937 {
-    /// The seed alone fixes the stream: the same seed replays byte for byte.
     pub fn new(seed: u32) -> Mt19937 {
         Mt19937 {
             inner: Mt::new(seed),
@@ -19,14 +15,12 @@ impl Mt19937 {
         }
     }
 
-    /// 53 bits, so the granularity matches an f64 mantissa exactly.
     pub fn next_f64(&mut self) -> f64 {
         let a = f64::from(self.inner.next_u32() >> 5);
         let b = f64::from(self.inner.next_u32() >> 6);
         (a * 67_108_864.0 + b) / 9_007_199_254_740_992.0
     }
 
-    /// The Box-Muller pair's second value is kept rather than thrown away.
     pub fn randn(&mut self) -> f64 {
         if self.has_spare {
             self.has_spare = false;

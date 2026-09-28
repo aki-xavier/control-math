@@ -1,10 +1,5 @@
-// Two deliberate behaviours hold wherever they are met: `at` answers 0.0 out of range instead of
-// panicking (an optional row reads as zeros), and `set` re-allocates when the storage length does
-// not match rows * cols (a mismatched literal stays usable).
-
 use crate::vec3::Vec3;
 
-/// Row-major — the layout every index in this file assumes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Mat {
     pub rows: usize,
@@ -22,14 +17,9 @@ impl Mat {
     }
 
     pub fn eye(n: usize) -> Mat {
-        let mut m = Mat::zeros(n, n);
-        for i in 0..n {
-            m.set(i, i, 1.0);
-        }
-        m
+        Mat::eye_scaled(1.0, n)
     }
 
-    /// The scaled identity a covariance is assembled from.
     pub fn eye_scaled(s: f64, n: usize) -> Mat {
         let mut r = Mat::zeros(n, n);
         for i in 0..n {
@@ -51,7 +41,6 @@ impl Mat {
         m
     }
 
-    /// The allocating counterpart of set_block, for a system matrix written as four quadrants.
     pub fn from_blocks(a: &Mat, b: &Mat, c: &Mat, d: &Mat) -> Mat {
         let mut r = Mat::zeros(a.rows + c.rows, a.cols + b.cols);
         for i in 0..a.rows {
@@ -77,8 +66,6 @@ impl Mat {
         r
     }
 
-    /// Resizes only when the data length differs: a loop that copies one matrix per step would
-    /// otherwise allocate one per step.
     pub fn copy_from(&mut self, src: &Mat) {
         self.rows = src.rows;
         self.cols = src.cols;
@@ -105,7 +92,6 @@ impl Mat {
         r
     }
 
-    /// With skew(k) written inline: both the result and that skew were allocations otherwise.
     pub fn from_axis_angle_into(axis: Vec3, angle: f64, out: &mut Mat) {
         let k = axis.normalized();
         let c = angle.cos();
@@ -114,7 +100,6 @@ impl Mat {
             *out = Mat::zeros(3, 3);
         }
         let kv = k.to_array();
-        // skew(k) in Mat::skew's own layout
         let kx = [
             [0.0, -kv[2], kv[1]],
             [kv[2], 0.0, -kv[0]],
@@ -133,7 +118,6 @@ impl Mat {
         }
     }
 
-    /// Axis-angle, world frame.
     pub fn to_rotvec(&self) -> Vec3 {
         let c = ((self.at(0, 0) + self.at(1, 1) + self.at(2, 2) - 1.0) / 2.0).clamp(-1.0, 1.0);
         let th = c.acos();
@@ -158,7 +142,6 @@ impl Mat {
         ax.scale(th / n)
     }
 
-    /// The guard against a covariance that has drifted asymmetric: (M + M')/2.
     pub fn symmetrized(&self) -> Mat {
         let mut r = Mat::zeros(self.rows, self.cols);
         for i in 0..self.rows {
@@ -169,7 +152,6 @@ impl Mat {
         r
     }
 
-    /// Out-of-range reads answer 0.0 rather than panicking, so an optional row reads as zeros.
     pub fn at(&self, i: usize, j: usize) -> f64 {
         if i >= self.rows || j >= self.cols {
             return 0.0;
@@ -196,7 +178,6 @@ impl Mat {
         r
     }
 
-    /// For mul_into's reason.
     pub fn transposed_into(&self, out: &mut Mat) {
         if out.rows != self.cols || out.cols != self.rows {
             *out = Mat::zeros(self.cols, self.rows);
@@ -208,7 +189,6 @@ impl Mat {
         }
     }
 
-    // A method rather than `impl Add`, as Vec3::add records.
     #[allow(clippy::should_implement_trait)]
     pub fn add(&self, o: &Mat) -> Mat {
         let mut r = Mat::zeros(self.rows, self.cols);
@@ -250,8 +230,6 @@ impl Mat {
         r
     }
 
-    /// Resized on demand and reused after that: otherwise a tight loop allocates a fresh `Mat`
-    /// per step.
     pub fn mul_into(&self, o: &Mat, out: &mut Mat) {
         if out.rows != self.rows || out.cols != o.cols {
             *out = Mat::zeros(self.rows, o.cols);
@@ -292,9 +270,6 @@ impl Mat {
         }
     }
 
-    /// Partial-pivoting Gaussian elimination. A singular pivot is skipped and the result is
-    /// best-effort: a solve that can meet a singular matrix argues about conditioning at its own
-    /// level.
     pub fn solve(&self, b: &[f64]) -> Vec<f64> {
         let n = self.rows;
         let mut a = vec![0.0; self.data.len()];
@@ -312,7 +287,7 @@ impl Mat {
                 }
             }
             if best < 1e-14 {
-                continue; // singular; keep going, result is best-effort
+                continue;
             }
             if piv != col {
                 for j in 0..self.cols {
@@ -342,7 +317,6 @@ impl Mat {
         rhs
     }
 
-    /// inv() is this against the identity.
     pub fn solve_mat(&self, b: &Mat) -> Mat {
         let mut out = Mat::zeros(b.rows, b.cols);
         for j in 0..b.cols {
@@ -362,7 +336,6 @@ impl Mat {
         self.solve_mat(&Mat::eye(self.rows))
     }
 
-    /// For JSON-friendly output.
     pub fn to_rows(&self) -> Vec<Vec<f64>> {
         let mut rows = vec![vec![0.0; self.cols]; self.rows];
         for i in 0..self.rows {

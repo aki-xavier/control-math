@@ -1,21 +1,14 @@
-// `box_qp` / `qp_ineq` are the cold-start primal active-set solvers, `ConstHessianQp` the warm-
-// started fast path: G = H^-1 is built once and the previous working set carried over, so a step
-// costs only O(n^2) matvecs.
-
 use crate::mat::Mat;
 
-// box_qp: min 0.5 u'Hu + f'u s.t. lb <= u <= ub. H must be SPD — the free-subspace step solves the
-// pinned-out system, which has no solution otherwise.
+fn clamp_box(v: f64, lb: f64, ub: f64) -> f64 {
+    lb.max(ub.min(v))
+}
+
 pub fn box_qp(h: &Mat, f_vec: &[f64], lb: &[f64], ub: &[f64]) -> Vec<f64> {
     let n = h.rows;
     let mut u = vec![0.0; n];
     for i in 0..n {
-        u[i] = 0.0;
-        if u[i] < lb[i] {
-            u[i] = lb[i];
-        } else if u[i] > ub[i] {
-            u[i] = ub[i];
-        }
+        u[i] = clamp_box(0.0, lb[i], ub[i]);
     }
     let mut active = vec![false; n];
     for i in 0..n {
@@ -26,7 +19,6 @@ pub fn box_qp(h: &Mat, f_vec: &[f64], lb: &[f64], ub: &[f64]) -> Vec<f64> {
         for i in 0..n {
             g[i] += f_vec[i];
         }
-        // KKT multipliers: at lb need g >= 0, at ub need g <= 0; release the worst pin
         let mut worst = -1.0;
         let mut rel: i32 = -1;
         for i in 0..n {
@@ -112,8 +104,6 @@ pub fn box_qp(h: &Mat, f_vec: &[f64], lb: &[f64], ub: &[f64]) -> Vec<f64> {
     u
 }
 
-// qp_ineq adds A u <= b. Feasibility has to be reached before the working-set step means anything,
-// so Phase I is its own projected-gradient loop.
 pub fn qp_ineq(
     h: &Mat,
     f_vec: &[f64],
@@ -125,8 +115,6 @@ pub fn qp_ineq(
     qp_ineq_warm(h, f_vec, lb, ub, a_mat, b_vec, &[])
 }
 
-// qp_ineq_warm takes a hot start u0 instead of zero: a re-solve near it converges in fewer
-// iterations.
 pub fn qp_ineq_warm(
     h: &Mat,
     f_vec: &[f64],
@@ -144,9 +132,8 @@ pub fn qp_ineq_warm(
         if u0.len() == n {
             init = u0[i];
         }
-        u[i] = lb[i].max(ub[i].min(init));
+        u[i] = clamp_box(init, lb[i], ub[i]);
     }
-    // ---- Phase I: feasibility before the working-set step is meaningful ---
     if m > 0 {
         for _ in 0..800 {
             let av = a_mat.mul_vec(&u);
@@ -164,7 +151,7 @@ pub fn qp_ineq_warm(
             for _ in 0..24 {
                 let mut un = vec![0.0; n];
                 for i in 0..n {
-                    un[i] = lb[i].max(ub[i].min(u[i] - alpha * grad[i]));
+                    un[i] = clamp_box(u[i] - alpha * grad[i], lb[i], ub[i]);
                 }
                 let avn = a_mat.mul_vec(&un);
                 let mut vn = 0.0;
@@ -180,7 +167,7 @@ pub fn qp_ineq_warm(
             }
         }
     }
-    let mut w_list: Vec<usize> = Vec::new(); // active inequality rows (treated as equalities)
+    let mut w_list: Vec<usize> = Vec::new();
     for _it in 0..300 {
         let mut free_idx: Vec<usize> = Vec::new();
         for i in 0..n {
@@ -194,7 +181,6 @@ pub fn qp_ineq_warm(
         if ns == 0 {
             return u;
         }
-        // KKT: [Hff A_wf'; A_wf 0] [uf; lambda] = [rhs1; rhs2]
         let mut k = Mat::zeros(ns, ns);
         let mut rhs = vec![0.0; ns];
         for a in 0..nf {
@@ -288,7 +274,6 @@ pub fn qp_ineq_warm(
             w_list.push(worst_row as usize);
             continue;
         }
-        // multipliers: active rows need lambda >= 0; release the worst
         let mut worst_l = -1e-30;
         let mut rel: i32 = -1;
         for r in 0..nw {
@@ -302,7 +287,6 @@ pub fn qp_ineq_warm(
             w_list.remove(rel as usize);
             continue;
         }
-        // bound duals via the reduced gradient g + A_w' lambda
         let mut lam = vec![0.0; nw];
         lam[..nw].copy_from_slice(&sol[nf..nf + nw]);
         let mut geff = h.mul_vec(&u);
@@ -343,29 +327,116 @@ pub fn qp_ineq_warm(
     u
 }
 
-// ---- ConstHessianQp: the warm-started path ---------------------------------
-
-/// For a QP whose H is constant across calls: G = H^{-1} is built once and the previous working
-/// set is carried over, so a step is only an active-set loop over the active rows C,
-/// u = -G f - G C' mu,  (C G C') mu = -(C G f + d),  C u = d.
 pub struct ConstHessianQp {
     pub n: usize,
-    pub h: Mat,                 // constant Hessian (kept for the gradient)
-    pub g_inv: Mat,             // H^{-1} — the whole reason the type exists
-    pub u_prev: Vec<f64>,       // warm start: previous solve (moves little between calls)
-    pub pins_prev: Vec<usize>,  // warm-start pins
-    pub wrows_prev: Vec<usize>, // warm-start rows
-    pub iters: usize,           // diagnostics (last solve): working-set iterations
-    pub phase1_iter: usize,     // diagnostics (last solve): Phase I iterations
-    pub n_row_add: usize,       // diagnostics (last solve): row adds / releases
+    pub h: Mat,
+    pub g_inv: Mat,
+    pub u_prev: Vec<f64>,
+    pub pins_prev: Vec<usize>,
+    pub wrows_prev: Vec<usize>,
+    pub iters: usize,
+    pub phase1_iter: usize,
+    pub n_row_add: usize,
     pub n_row_rel: usize,
-    pub n_pin_add: usize, // diagnostics (last solve): pin adds / releases
+    pub n_pin_add: usize,
     pub n_pin_rel: usize,
     pub n_eq_fail: usize,
 }
 
 impl ConstHessianQp {
-    // v = G x on the raw row-major storage (hot path, no Mat bounds).
+    pub fn new(h: Mat) -> ConstHessianQp {
+        let n = h.rows;
+        let mut l = Mat::zeros(n, n);
+        for i in 0..n {
+            for j in 0..=i {
+                let mut s = h.at(i, j);
+                for k in 0..j {
+                    s -= l.at(i, k) * l.at(j, k);
+                }
+                if i == j {
+                    l.set(i, j, s.max(1e-300).sqrt());
+                } else {
+                    l.set(i, j, s / l.at(j, j));
+                }
+            }
+        }
+        let mut g = Mat::zeros(n, n);
+        for j in 0..n {
+            let mut y = vec![0.0; n];
+            for i in 0..n {
+                let mut s = if i == j { 1.0 } else { 0.0 };
+                for k in 0..i {
+                    s -= l.at(i, k) * y[k];
+                }
+                y[i] = s / l.at(i, i);
+            }
+            for i in (0..n).rev() {
+                let mut s = y[i];
+                for k in i + 1..n {
+                    s -= l.at(k, i) * g.at(k, j);
+                }
+                g.set(i, j, s / l.at(i, i));
+            }
+        }
+        for i in 0..n {
+            for j in i + 1..n {
+                let avg = g.at(i, j).midpoint(g.at(j, i));
+                g.set(i, j, avg);
+                g.set(j, i, avg);
+            }
+        }
+        ConstHessianQp {
+            n,
+            h,
+            g_inv: g,
+            u_prev: Vec::new(),
+            pins_prev: Vec::new(),
+            wrows_prev: Vec::new(),
+            iters: 0,
+            phase1_iter: 0,
+            n_row_add: 0,
+            n_row_rel: 0,
+            n_pin_add: 0,
+            n_pin_rel: 0,
+            n_eq_fail: 0,
+        }
+    }
+
+    fn warm_u(&self, lb: &[f64], ub: &[f64]) -> Vec<f64> {
+        let n = self.n;
+        let mut u = vec![0.0; n];
+        for i in 0..n {
+            let mut init = 0.0;
+            if self.u_prev.len() == n {
+                init = self.u_prev[i];
+            }
+            u[i] = clamp_box(init, lb[i], ub[i]);
+        }
+        u
+    }
+
+    fn restore_pins(&self, lb: &[f64], ub: &[f64]) -> (Vec<bool>, Vec<usize>, Vec<f64>) {
+        let n = self.n;
+        let mut pinned = vec![false; n];
+        let mut pins: Vec<usize> = Vec::new();
+        let mut pv: Vec<f64> = Vec::new();
+        for &i in &self.pins_prev {
+            if self.u_prev.len() != n || i >= n {
+                continue;
+            }
+            if (self.u_prev[i] - lb[i]).abs() < 1e-9 {
+                pinned[i] = true;
+                pins.push(i);
+                pv.push(lb[i]);
+            } else if (self.u_prev[i] - ub[i]).abs() < 1e-9 {
+                pinned[i] = true;
+                pins.push(i);
+                pv.push(ub[i]);
+            }
+        }
+        (pinned, pins, pv)
+    }
+
     fn g_matvec(&self, x: &[f64]) -> Vec<f64> {
         let n = self.n;
         let mut v = vec![0.0; n];
@@ -389,8 +460,6 @@ impl ConstHessianQp {
         col
     }
 
-    // eq_solve: the working set is treated as equalities, so the multipliers come back pins first
-    // and rows after; ok=false is a singular set, broken by dropping a member.
     #[allow(clippy::too_many_arguments)]
     fn eq_solve(
         &self,
@@ -422,7 +491,6 @@ impl ConstHessianQp {
         }
         for r in 0..nw {
             let row = wrows[r];
-            // G c for each active row is computed once per solve, not per iteration
             if gcol_cache[row].len() != n {
                 let mut c = vec![0.0; n];
                 for i in 0..n {
@@ -477,36 +545,10 @@ impl ConstHessianQp {
         (u, mu, true)
     }
 
-    // The previous solution seeds both u and the pins, which keeps the working-set loop short
-    // from one call to the next.
     pub fn solve_box(&mut self, f: &[f64], lb: &[f64], ub: &[f64]) -> Vec<f64> {
         let n = self.n;
-        let mut u = vec![0.0; n];
-        for i in 0..n {
-            let mut init = 0.0;
-            if self.u_prev.len() == n {
-                init = self.u_prev[i];
-            }
-            u[i] = lb[i].max(ub[i].min(init));
-        }
-        let mut pinned = vec![false; n];
-        let mut pins: Vec<usize> = Vec::new();
-        let mut pv: Vec<f64> = Vec::new();
-        for i in 0..self.pins_prev.len() {
-            let i = self.pins_prev[i];
-            if self.u_prev.len() != n || i >= n {
-                continue;
-            }
-            if (self.u_prev[i] - lb[i]).abs() < 1e-9 {
-                pinned[i] = true;
-                pins.push(i);
-                pv.push(lb[i]);
-            } else if (self.u_prev[i] - ub[i]).abs() < 1e-9 {
-                pinned[i] = true;
-                pins.push(i);
-                pv.push(ub[i]);
-            }
-        }
+        let mut u = self.warm_u(lb, ub);
+        let (mut pinned, mut pins, mut pv) = self.restore_pins(lb, ub);
         let mut pcol: Vec<Vec<f64>> = vec![Vec::new(); n];
         let mut gcol_cache: Vec<Vec<f64>> = Vec::new();
         let empty_a = Mat::zeros(0, 0);
@@ -573,7 +615,6 @@ impl ConstHessianQp {
                 self.n_pin_add += 1;
                 continue;
             }
-            // a pin at lb needs mu <= 0 and a pin at ub needs mu >= 0 (the residual is -mu[j])
             let mut worst = 0.0;
             let mut rel: i32 = -1;
             for j in 0..pins.len() {
@@ -603,8 +644,6 @@ impl ConstHessianQp {
         u
     }
 
-    // Phase I is the reference solver's projected gradient, so this and qp_ineq start from the
-    // same iterate.
     pub fn solve_ineq(
         &mut self,
         f: &[f64],
@@ -615,15 +654,7 @@ impl ConstHessianQp {
     ) -> Vec<f64> {
         let n = self.n;
         let m = b.len();
-        let mut u = vec![0.0; n];
-        for i in 0..n {
-            let mut init = 0.0;
-            if self.u_prev.len() == n {
-                init = self.u_prev[i];
-            }
-            u[i] = lb[i].max(ub[i].min(init));
-        }
-        // ---- Phase I: feasibility on A u <= b (projected gradient) ----------
+        let mut u = self.warm_u(lb, ub);
         self.phase1_iter = 0;
         if m > 0 {
             for _ in 0..800 {
@@ -644,7 +675,7 @@ impl ConstHessianQp {
                 for _ in 0..24 {
                     let mut un = vec![0.0; n];
                     for i in 0..n {
-                        un[i] = lb[i].max(ub[i].min(u[i] - alpha * grad[i]));
+                        un[i] = clamp_box(u[i] - alpha * grad[i], lb[i], ub[i]);
                     }
                     let avn = a.mul_vec(&un);
                     let mut vn = 0.0;
@@ -659,31 +690,12 @@ impl ConstHessianQp {
                     }
                     alpha *= 0.5;
                 }
-                // a failed line search leaves u untouched, so a stuck iterate cannot progress
                 if !progressed {
                     break;
                 }
             }
         }
-        // ---- working set: warm-started bound pins + keep-out rows ------------
-        let mut pinned = vec![false; n];
-        let mut pins: Vec<usize> = Vec::new();
-        let mut pv: Vec<f64> = Vec::new();
-        for i in 0..self.pins_prev.len() {
-            let i = self.pins_prev[i];
-            if self.u_prev.len() != n || i >= n {
-                continue;
-            }
-            if (self.u_prev[i] - lb[i]).abs() < 1e-9 {
-                pinned[i] = true;
-                pins.push(i);
-                pv.push(lb[i]);
-            } else if (self.u_prev[i] - ub[i]).abs() < 1e-9 {
-                pinned[i] = true;
-                pins.push(i);
-                pv.push(ub[i]);
-            }
-        }
+        let (mut pinned, mut pins, mut pv) = self.restore_pins(lb, ub);
         let mut wrows: Vec<usize> = Vec::new();
         for r in 0..self.wrows_prev.len() {
             let r = self.wrows_prev[r];
@@ -769,8 +781,6 @@ impl ConstHessianQp {
                 continue;
             }
             u = uf.clone();
-            // one row per iteration: batching makes the working set degenerate (near-parallel rows
-            // share non-unique multipliers) and cycles.
             let av = a.mul_vec(&u);
             let mut worst_r: i32 = -1;
             let mut worst_v = 1e-9;
@@ -829,65 +839,5 @@ impl ConstHessianQp {
         self.pins_prev = pins.clone();
         self.wrows_prev = wrows.clone();
         u
-    }
-
-    /// Builds G = H^{-1} by Cholesky, which is why H must be SPD: an indefinite H has no factor.
-    pub fn new(h: Mat) -> ConstHessianQp {
-        let n = h.rows;
-        let mut l = Mat::zeros(n, n);
-        for i in 0..n {
-            for j in 0..=i {
-                let mut s = h.at(i, j);
-                for k in 0..j {
-                    s -= l.at(i, k) * l.at(j, k);
-                }
-                if i == j {
-                    l.set(i, j, s.max(1e-300).sqrt());
-                } else {
-                    l.set(i, j, s / l.at(j, j));
-                }
-            }
-        }
-        // G = L^{-T} L^{-1}: one forward/back substitution per unit column.
-        let mut g = Mat::zeros(n, n);
-        for j in 0..n {
-            let mut y = vec![0.0; n];
-            for i in 0..n {
-                let mut s = if i == j { 1.0 } else { 0.0 };
-                for k in 0..i {
-                    s -= l.at(i, k) * y[k];
-                }
-                y[i] = s / l.at(i, i);
-            }
-            for i in (0..n).rev() {
-                let mut s = y[i];
-                for k in i + 1..n {
-                    s -= l.at(k, i) * g.at(k, j);
-                }
-                g.set(i, j, s / l.at(i, i));
-            }
-        }
-        for i in 0..n {
-            for j in i + 1..n {
-                let avg = g.at(i, j).midpoint(g.at(j, i));
-                g.set(i, j, avg);
-                g.set(j, i, avg);
-            }
-        }
-        ConstHessianQp {
-            n,
-            h,
-            g_inv: g,
-            u_prev: Vec::new(),
-            pins_prev: Vec::new(),
-            wrows_prev: Vec::new(),
-            iters: 0,
-            phase1_iter: 0,
-            n_row_add: 0,
-            n_row_rel: 0,
-            n_pin_add: 0,
-            n_pin_rel: 0,
-            n_eq_fail: 0,
-        }
     }
 }

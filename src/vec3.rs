@@ -30,7 +30,6 @@ impl Vec3 {
         v
     }
 
-    // A method rather than `impl Add`: the arithmetic is written out expression by expression.
     #[allow(clippy::should_implement_trait)]
     pub fn add(self, o: Vec3) -> Vec3 {
         Vec3 {
@@ -40,7 +39,6 @@ impl Vec3 {
         }
     }
 
-    // A method, for the reason add records.
     #[allow(clippy::should_implement_trait)]
     pub fn sub(self, o: Vec3) -> Vec3 {
         Vec3 {
@@ -86,7 +84,6 @@ impl Vec3 {
         [self.x, self.y, self.z]
     }
 
-    /// Deterministic, so a run reproduces its basis.
     pub fn perp(self) -> Vec3 {
         let a = Vec3 {
             x: self.x.abs(),
